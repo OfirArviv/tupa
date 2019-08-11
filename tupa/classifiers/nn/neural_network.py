@@ -7,6 +7,7 @@ import dynet_config
 import numpy as np
 from tqdm import tqdm
 
+from tupa.embedding_provider import ElmoTokenEmbedder
 from .birnn import EmptyRNN, BiRNN, HighwayRNN, HierarchicalBiRNN
 from .constants import TRAINERS, TRAINER_LEARNING_RATE_PARAM_NAMES, TRAINER_KWARGS, CategoricalParameter
 from .mlp import MultilayerPerceptron
@@ -188,6 +189,7 @@ class NeuralNetwork(Classifier, SubModel):
         return value
 
     def get_bert_embed(self, passage, lang, train=False):
+        ElmoTokenEmbedder.get_elmo_embed(passage, lang)
         orig_tokens = passage
         bert_tokens = []
         # Token map will be an int -> int mapping between the `orig_tokens` index and
