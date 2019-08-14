@@ -30,6 +30,7 @@ class AxisModel:
     """
     Format-specific parameters that are part of the network
     """
+
     def __init__(self, axis, num_labels, config, model, birnn_type):
         args = config.hyperparams.specific[axis]
         self.birnn = birnn_type(config, args, model, save_path=("axes", axis, "birnn"),
@@ -85,7 +86,7 @@ class NeuralNetwork(Classifier, SubModel):
     @property
     def input_dim(self):
         return OrderedDict((a, m.mlp.input_dim) for a, m in self.axes.items())
-    
+
     @property
     def birnn_type(self):
         return BIRNN_TYPES.get(self.model_type, EmptyRNN)
@@ -139,10 +140,11 @@ class NeuralNetwork(Classifier, SubModel):
         for key, param in sorted(self.input_params.items()):
             if not param.enabled:
                 continue
-            if self.config.args.use_bert and \
-                    (not self.config.args.bert_use_default_word_embeddings
-                     or self.config.args.bert_multilingual is not None) \
-                    and key == 'W':
+            if (self.config.args.use_elmo or
+                (self.config.args.use_bert and
+                 (not self.config.args.bert_use_default_word_embeddings
+                  or self.config.args.bert_multilingual is not None))
+                    and key == 'W'):
                 i = self.birnn_indices(param)
                 indexed_num[i] = np.fmax(indexed_num[i], param.num)  # indices to be looked up are collected
                 continue
@@ -189,7 +191,6 @@ class NeuralNetwork(Classifier, SubModel):
         return value
 
     def get_bert_embed(self, passage, lang, train=False):
-        ElmoTokenEmbedder.get_elmo_embed(passage, lang)
         orig_tokens = passage
         bert_tokens = []
         # Token map will be an int -> int mapping between the `orig_tokens` index and
@@ -307,6 +308,10 @@ class NeuralNetwork(Classifier, SubModel):
                 print("\n--Bert Weights--: ")
                 print(str(dy.softmax(self.params["bert_weights"]).value()))
                 self.last_weights = str(dy.softmax(self.params["bert_weights"]).value())
+        if self.config.args.use_elmo:
+            elmo_embed = ElmoTokenEmbedder.get_elmo_embed_layer_1(passage, lang)
+            embeddings[0].append(('ELMo', elmo_embed))
+            embeddings[1].append(('ELMo', elmo_embed))
 
         for birnn in self.get_birnns(*axes):
             birnn.init_features(embeddings[int(birnn.shared)], train)
@@ -433,12 +438,12 @@ class NeuralNetwork(Classifier, SubModel):
         if self.config.args.verbose > 2:
             self.trainer.status()
         return self
-            
+
     def sub_models(self):
         """ :return: ordered list of SubModels """
         axes = list(filter(None, map(self.axes.get, self.labels or self.labels_t)))
         return [self] + [m.mlp for m in axes] + [m.birnn for m in axes + [self]]
-    
+
     def save_sub_model(self, d, *args):
         return SubModel.save_sub_model(
             self, d,
@@ -519,7 +524,7 @@ class NeuralNetwork(Classifier, SubModel):
                 model.birnn.load_sub_model(d, *shared_values, load_path=self.birnn.save_path)
                 if self.config.args.verbose <= 3:
                     self.config.print(lambda: "Copied from %s to %s" %
-                                      ("/".join(self.birnn.save_path), model.birnn.params_str()), level=1)
+                                              ("/".join(self.birnn.save_path), model.birnn.params_str()), level=1)
                 self.init_axis_model(axis, init=False)  # Update input_dim
 
     def params_num(self, d):
@@ -530,12 +535,12 @@ class NeuralNetwork(Classifier, SubModel):
         for model in self.sub_models():
             for key, value in model.params.items():
                 for name, param in ((key, value),) if isinstance(value, (dy.Parameters, dy.LookupParameters)) else [
-                        ("%s%s%d%d%d" % (key, p, i, j, k), v) for i, (f, b) in
-                        enumerate(value.builder_layers)
-                        for p, r in (("f", f), ("b", b)) for j, l in enumerate(r.get_parameters())
-                        for k, v in enumerate(l)] if isinstance(value, dy.BiRNNBuilder) else [
-                        ("%s%d%d" % (key, j, k), v) for j, l in enumerate(value.get_parameters())
-                        for k, v in enumerate(l)]:
+                    ("%s%s%d%d%d" % (key, p, i, j, k), v) for i, (f, b) in
+                    enumerate(value.builder_layers)
+                    for p, r in (("f", f), ("b", b)) for j, l in enumerate(r.get_parameters())
+                    for k, v in enumerate(l)] if isinstance(value, dy.BiRNNBuilder) else [
+                    ("%s%d%d" % (key, j, k), v) for j, l in enumerate(value.get_parameters())
+                    for k, v in enumerate(l)]:
                     d["_".join(model.save_path + (name,))] = param.as_array() if as_array else param
         return d
 
