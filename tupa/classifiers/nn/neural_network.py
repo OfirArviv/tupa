@@ -7,7 +7,7 @@ import dynet_config
 import numpy as np
 from tqdm import tqdm
 
-from tupa.embedding_provider import ElmoTokenEmbedder
+from tupa.embedding_provider import ElmoCrossLingualTokenEmbedder
 from .birnn import EmptyRNN, BiRNN, HighwayRNN, HierarchicalBiRNN
 from .constants import TRAINERS, TRAINER_LEARNING_RATE_PARAM_NAMES, TRAINER_KWARGS, CategoricalParameter
 from .mlp import MultilayerPerceptron
@@ -140,15 +140,15 @@ class NeuralNetwork(Classifier, SubModel):
         for key, param in sorted(self.input_params.items()):
             if not param.enabled:
                 continue
-            if (self.config.args.use_elmo or
+            if ((self.config.args.use_elmo or
                 (self.config.args.use_bert and
                  (not self.config.args.bert_use_default_word_embeddings
-                  or self.config.args.bert_multilingual is not None))
+                  or self.config.args.bert_multilingual is not None)))
                     and key == 'W'):
                 i = self.birnn_indices(param)
                 indexed_num[i] = np.fmax(indexed_num[i], param.num)  # indices to be looked up are collected
                 continue
-            if self.config.args.bert_multilingual is not None and param.lang_specific:
+            if param.lang_specific and (self.config.args.bert_multilingual is not None or self.config.args.use_elmo):
                 continue
             self.config.print("Initializing input parameter: %s" % param, level=4)
             if not param.numeric and key not in self.params:  # lookup feature
@@ -172,6 +172,9 @@ class NeuralNetwork(Classifier, SubModel):
             indexed_dim[[0, 1]] += self.bert_embedding_len
             if self.config.args.bert_multilingual == 0:
                 indexed_dim[[0, 1]] += 50
+
+        if self.config.args.use_elmo and init:
+            indexed_dim[[0, 1]] += 1024
 
         for birnn in self.get_birnns(axis):
             birnn.init_params(indexed_dim[int(birnn.shared)], indexed_num[int(birnn.shared)])
@@ -309,7 +312,7 @@ class NeuralNetwork(Classifier, SubModel):
                 print(str(dy.softmax(self.params["bert_weights"]).value()))
                 self.last_weights = str(dy.softmax(self.params["bert_weights"]).value())
         if self.config.args.use_elmo:
-            elmo_embed = ElmoTokenEmbedder.get_elmo_embed_layer_1(passage, lang)
+            elmo_embed = dy.inputTensor(ElmoCrossLingualTokenEmbedder.get_elmo_embed_layer_1(passage, lang))
             embeddings[0].append(('ELMo', elmo_embed))
             embeddings[1].append(('ELMo', elmo_embed))
 

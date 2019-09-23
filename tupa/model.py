@@ -273,6 +273,7 @@ class Model:
                 self.classifier.save(self.filename, skip_labels=skip_labels,
                                      multilingual=self.config.args.multilingual,
                                      omit_features=self.config.args.omit_features,
+                                     use_elmo=self.config.args.use_elmo,
                                      **bert_configs)
                 textutil.models["vocab"] = self.config.args.vocab
                 save_json(self.filename + ".nlp.json", textutil.models)
@@ -290,6 +291,7 @@ class Model:
                 self.config.args.classifier = Classifier.get_property(self.filename, "type")
                 self.config.args.multilingual = Classifier.get_property(self.filename, "multilingual")
                 self.config.args.omit_features = Classifier.get_property(self.filename, "omit_features")
+                self.config.args.use_elmo = Classifier.get_property(self.filename, "use_elmo")
                 self.config.args.use_bert = Classifier.get_property(self.filename, "use_bert")
                 if self.config.args.use_bert:
                     self.config.args.bert_model = Classifier.get_property(self.filename, "bert_model")

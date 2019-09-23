@@ -73,9 +73,9 @@ class PassageParser(AbstractParser):
             assert not errors, errors
         self.in_format = self.format or "ucca"
         self.out_format = "ucca" if self.format in (None, "text") else self.format
-        if self.config.args.use_bert and self.config.args.bert_multilingual is not None:
+        if (self.config.args.use_bert and self.config.args.bert_multilingual is not None) or self.config.args.use_elmo:
             self.lang = self.passage.attrib.get("lang")
-            assert self.lang, "Attribute 'lang' is required per passage when using multilingual BERT"
+            assert self.lang, "Attribute 'lang' is required per passage when using multilingual BERT or ELMo"
         else:
             self.lang = self.passage.attrib.get("lang", self.config.args.lang)
         # Used in verify_passage to optionally ignore a mismatch in linkage nodes:
@@ -442,9 +442,14 @@ class Parser(AbstractParser):
                         self.config.random.shuffle(passages)
                     if not sum(1 for _ in self.parse(passages, mode=ParseMode.train)):
                         raise ParserException("Could not train on any passage")
-                    yield self.eval_and_save(self.iteration == len(iterations) and self.epoch == end - 1,
-                                             finished_epoch=True)
-                print("Trained %d epochs" % (end - 1))
+                    scores, run_out_patience = self.eval_and_save(
+                        self.iteration == len(iterations) and self.epoch == end - 1,
+                        finished_epoch=True)
+                    yield scores
+                    if run_out_patience:
+                        end = self.epoch
+                        break
+                print(f'Trained {self.model.classifier.epoch} epochs')
                 if dev:
                     if self.iteration < len(iterations):
                         if self.model.is_retrainable:
@@ -469,6 +474,7 @@ class Parser(AbstractParser):
     def eval_and_save(self, last=False, finished_epoch=False):
         scores = None
         model = self.model
+        run_out_patience = False
         # noinspection PyAttributeOutsideInit
         self.model = finalized = model.finalize(finished_epoch=finished_epoch)
         if self.dev:
@@ -478,6 +484,7 @@ class Parser(AbstractParser):
             if average_score >= self.best_score:
                 print("Better than previous best score (%.3f)" % self.best_score)
                 finalized.classifier.best_score = average_score
+                finalized.classifier.best_epoch = finalized.classifier.epoch
                 if self.best_score:
                     self.save(finalized)
                 self.best_score = average_score
@@ -485,11 +492,18 @@ class Parser(AbstractParser):
                     self.eval(self.test, ParseMode.test, self.config.args.testscores, display=False)
             else:
                 print("Not better than previous best score (%.3f)" % self.best_score)
+                if self.config.args.patience is not None:
+                    best_epoch = self.model.classifier.best_epoch
+                    assert isinstance(best_epoch, int)
+                    if self.epoch >= best_epoch + self.config.args.patience:
+                        print(f'Ran out of patience. Stopping training. '
+                              f'Best epoch: {best_epoch}, current epoch: {self.epoch}.')
+                        run_out_patience = True
         elif last or self.config.args.save_every is not None:
             self.save(finalized)
         if not last:
             finalized.restore(model)  # Restore non-finalized model
-        return scores
+        return scores, run_out_patience
 
     def save(self, model):
         self.config.save(model.filename)

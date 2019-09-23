@@ -1,5 +1,6 @@
 import os
 import shlex
+from argparse import ArgumentTypeError
 from copy import deepcopy
 
 import dynet_config
@@ -222,7 +223,7 @@ class HyperparamsInitializer:
 
     def __bool__(self):
         return bool(self.str_args)
-    
+
     @classmethod
     def action(cls, args):
         return cls(*args.replace("=", " ").split())
@@ -245,6 +246,10 @@ class Config(object, metaclass=Singleton):
         self.arg_parser = ap = ArgParser(description="Transition-based parser for UCCA.",
                                          formatter_class=ArgumentDefaultsHelpFormatter)
 
+        ap.add_argument("--patience", type=check_positive,
+                        help="Number of epochs to be patient before early stopping: "
+                             "the training is stopped after ``patience`` epochs with "
+                             "no improvement.")
         add_boolean_option(ap, "use-elmo", default=False, description="whether to use elmo embeddings")
         add_boolean_option(ap, "use-bert", default=False, description="whether to use bert embeddings")
         ap.add_argument("--bert-model", choices=["bert-base-uncased", "bert-large-uncased", "bert-base-cased",
@@ -380,9 +385,10 @@ class Config(object, metaclass=Singleton):
     def max_actions_unlabeled(self):
         return 6 + (  # Shift Node Reduce LeftEdge RightEdge Finish
             3 if self.args.remote else 0) + (  # RemoteNode LeftRemote RightRemote
-            1 if self.args.swap == REGULAR else (self.args.max_swap if self.args.swap == COMPOUND else 0)) + (  # Swap
-            1 if self.args.implicit else 0) + (  # Implicit
-            2 if self.args.node_labels and not self.args.use_gold_node_labels else 0)  # Label x 2
+                   1 if self.args.swap == REGULAR else (self.args.max_swap if self.args.swap == COMPOUND else 0)) + (
+                   # Swap
+                   1 if self.args.implicit else 0) + (  # Implicit
+                   2 if self.args.node_labels and not self.args.use_gold_node_labels else 0)  # Label x 2
 
     def set_dynet_arguments(self):
         self.random.seed(self.args.seed)
@@ -547,3 +553,13 @@ class Config(object, metaclass=Singleton):
     def __str__(self):
         self.args.hyperparams = [HyperparamsInitializer(name, **args.vars()) for name, args in self.hyperparams.items()]
         return " ".join(list(self.args.passages) + self.args_str(self.args))
+
+
+def check_positive(value: str) -> int:
+    ivalue = int(value)
+    try:
+        if not ivalue > 0:
+            raise ArgumentTypeError("%s is an invalid positive int value" % value)
+    except ValueError:
+        raise ArgumentTypeError("%s is an invalid positive int value" % value)
+    return ivalue

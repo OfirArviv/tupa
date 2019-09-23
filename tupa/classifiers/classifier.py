@@ -22,7 +22,7 @@ class Classifier:
         self.learning_rate_decay = self.config.args.learning_rate_decay
         self.model = self.labels_t = None
         self.is_frozen = False
-        self.updates = self.epoch = self.best_score = 0
+        self.updates = self.epoch = self.best_score = self.best_epoch = 0
         self._num_labels = self.num_labels
 
     @property
@@ -125,6 +125,7 @@ class Classifier:
         self.config.args.learning_rate_decay = self.learning_rate_decay = d["learning_rate_decay"]
         self.updates = d.get("updates", 0)
         self.epoch = d.get("epoch", 0)
+        self.best_epoch = d.get("epoch", 0)
         self.best_score = d.get("best_score", 0)
         self.load_model(filename, d)
 
