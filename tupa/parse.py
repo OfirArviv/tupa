@@ -495,6 +495,7 @@ class Parser(AbstractParser):
                 if self.config.args.patience is not None:
                     best_epoch = self.model.classifier.best_epoch
                     assert isinstance(best_epoch, int)
+                    print(f'Num of epochs without improvement: {self.epoch - best_epoch}')
                     if self.epoch >= best_epoch + self.config.args.patience:
                         print(f'Ran out of patience. Stopping training. '
                               f'Best epoch: {best_epoch}, current epoch: {self.epoch}.')
