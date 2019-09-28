@@ -250,7 +250,7 @@ class Config(object, metaclass=Singleton):
                         help="Number of epochs to be patient before early stopping: "
                              "the training is stopped after ``patience`` epochs with "
                              "no improvement.")
-        add_boolean_option(ap, "use-elmo", default=False, description="whether to use elmo embeddings")
+        add_boolean_option(ap, "use-elmo", default=False, description="whether to use cross lingual elmo embeddings")
         add_boolean_option(ap, "use-bert", default=False, description="whether to use bert embeddings")
         ap.add_argument("--bert-model", choices=["bert-base-uncased", "bert-large-uncased", "bert-base-cased",
                                                  "bert-large-cased", "bert-base-multilingual-cased"],
