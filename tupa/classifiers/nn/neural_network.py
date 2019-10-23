@@ -7,6 +7,7 @@ import dynet_config
 import numpy as np
 from tqdm import tqdm
 
+from tupa.alignment_feature_extractor import AlignmentFeatureExtractor
 from .birnn import EmptyRNN, BiRNN, HighwayRNN, HierarchicalBiRNN
 from .constants import TRAINERS, TRAINER_LEARNING_RATE_PARAM_NAMES, TRAINER_KWARGS, CategoricalParameter
 from .mlp import MultilayerPerceptron
@@ -80,6 +81,10 @@ class NeuralNetwork(Classifier, SubModel):
         else:
             self.torch = self.tokenizer = self.bert_model = self.bert_layers_count = self.bert_embedding_len = \
                 self.last_weights = None
+
+        # if self.config.args.use_parallel_data
+        self.projection_feature_extractor = AlignmentFeatureExtractor()
+        self.projection_feature_params = self.projection_feature_extractor.features_params
 
     @property
     def input_dim(self):
@@ -170,6 +175,14 @@ class NeuralNetwork(Classifier, SubModel):
             if self.config.args.bert_multilingual == 0:
                 indexed_dim[[0, 1]] += 50
 
+        if True:  #self.config.args.use_parallel_data
+            for key, param in sorted(self.projection_feature_params.items()):
+                if not param.numeric and key not in self.params:  # lookup feature
+                    if init:
+                        lookup = self.model.add_lookup_parameters((param.size, param.dim), init='glorot')
+                        lookup.set_updated(param.updated)
+                        self.params[key] = lookup
+
         for birnn in self.get_birnns(axis):
             birnn.init_params(indexed_dim[int(birnn.shared)], indexed_num[int(birnn.shared)])
 
@@ -184,8 +197,9 @@ class NeuralNetwork(Classifier, SubModel):
 
     def get_empty_values(self, key):
         value = self.empty_values.get(key)
+        dim = self.input_params[key].dim if key in self.input_params else self.projection_feature_params[key].dim
         if value is None:
-            self.empty_values[key] = value = dy.inputVector(np.zeros(self.input_params[key].dim, dtype=float))
+            self.empty_values[key] = value = dy.inputVector(np.zeros(dim, dtype=float))
         return value
 
     def get_bert_embed(self, passage, lang, train=False):
@@ -310,7 +324,9 @@ class NeuralNetwork(Classifier, SubModel):
         for birnn in self.get_birnns(*axes):
             birnn.init_features(embeddings[int(birnn.shared)], train)
 
-    def generate_inputs(self, features, axis):
+    def generate_inputs(self, features, axis, state=None):
+        if state is None:
+            print("here")
         indices = []  # list, not set, in order to maintain consistent order
         for key, values in sorted(features.items()):
             param = self.input_params[key]
@@ -330,11 +346,20 @@ class NeuralNetwork(Classifier, SubModel):
             for birnn in self.get_birnns(axis):
                 yield from birnn.evaluate(indices)
 
+        projection_features = self.projection_feature_extractor.extract_features(state)
+        for key, values in sorted(projection_features.items()):
+            param = self.projection_feature_params[key]
+            lookup = self.params.get(key)
+            if param.numeric:
+                yield key, dy.inputVector(values)
+            else:  # lookup feature
+                yield from ((key, self.get_empty_values(key) if x == MISSING_VALUE else lookup[x]) for x in values)
+
     def get_birnns(self, *axes):
         """ Return shared + axis-specific BiRNNs """
         return [m.birnn for m in [self] + [self.axes[axis] for axis in axes]]
 
-    def evaluate(self, features, axis, train=False):
+    def evaluate(self, features, axis, state=None, train=False):
         """
         Apply MLP and log softmax to input features
         :param features: dictionary of key, values for each feature type
@@ -345,10 +370,10 @@ class NeuralNetwork(Classifier, SubModel):
         self.init_model(axis, train)
         value = self.value.get(axis)
         if value is None:
-            self.value[axis] = value = self.axes[axis].mlp.evaluate(self.generate_inputs(features, axis), train=train)
+            self.value[axis] = value = self.axes[axis].mlp.evaluate(self.generate_inputs(features, axis, state), train=train)
         return value
 
-    def score(self, features, axis):
+    def score(self, features, axis, state=None):
         """
         Calculate score for each label
         :param features: extracted feature values, of size input_size
@@ -358,7 +383,7 @@ class NeuralNetwork(Classifier, SubModel):
         super().score(features, axis)
         num_labels = self.num_labels[axis]
         if self.updates > 0 and num_labels > 1:
-            value = self.evaluate(features, axis)
+            value = self.evaluate(features, axis, state)
             if dynet_config.gpu():  # RestrictedLogSoftmax is not implemented for GPU, so we move the value to CPU first
                 value = dy.to_device(value, 'CPU')
             value = dy.log_softmax(value, restrict=list(range(num_labels))).npvalue()
@@ -368,7 +393,7 @@ class NeuralNetwork(Classifier, SubModel):
         self.config.print("  no updates done yet, returning zero vector.", level=4)
         return np.zeros(num_labels)
 
-    def update(self, features, axis, pred, true, importance=None):
+    def update(self, features, axis, pred, true, importance=None, state=None):
         """
         Update classifier weights according to predicted and true labels
         :param features: extracted feature values, in the form of a dict (name: value)
@@ -378,7 +403,7 @@ class NeuralNetwork(Classifier, SubModel):
         :param importance: how much to scale the update for the weight update for each true label
         """
         super().update(features, axis, pred, true, importance)
-        losses = self.calc_loss(self.evaluate(features, axis, train=True), axis, true, importance or repeat(1))
+        losses = self.calc_loss(self.evaluate(features, axis, train=True, state=state), axis, true, importance or repeat(1))
         self.config.print(lambda: "  loss=" + ", ".join("%g" % l.value() for l in losses), level=4)
         self.losses += losses
         self.steps += 1

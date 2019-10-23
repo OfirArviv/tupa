@@ -34,7 +34,7 @@ class Classifier:
     def input_dim(self):
         raise NotImplementedError()
 
-    def score(self, features, axis):
+    def score(self, features, axis, state=None):
         if not self.is_frozen:
             self._update_num_labels()
 

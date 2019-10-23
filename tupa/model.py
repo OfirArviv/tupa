@@ -226,7 +226,7 @@ class Model:
 
     def score(self, state, axis):
         features = self.feature_extractor.extract_features(state)
-        return self.classifier.score(features, axis=axis), features  # scores is a NumPy array
+        return self.classifier.score(features, axis=axis, state=state), features  # scores is a NumPy array
 
     def init_features(self, state, train):
         self.init_model()

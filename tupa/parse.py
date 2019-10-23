@@ -1,4 +1,5 @@
 import concurrent.futures
+import itertools
 import os
 import sys
 import time
@@ -13,10 +14,12 @@ from semstr.util.amr import LABEL_ATTRIB, WIKIFIER
 from semstr.validation import validate
 from tqdm import tqdm
 from ucca import diffutil, ioutil, textutil, layer0, layer1
+from ucca.core import Passage
 from ucca.evaluation import LABELED, UNLABELED, EVAL_TYPES, evaluate as evaluate_ucca
 from ucca.normalization import normalize
 
 from tupa.__version__ import GIT_VERSION
+from tupa.alignment_utils import get_alignment_list, get_alignment_list_keys
 from tupa.config import Config, Iterations
 from tupa.model import Model, NODE_LABEL_KEY, ClassifierProperty
 from tupa.oracle import Oracle
@@ -198,7 +201,8 @@ class PassageParser(AbstractParser):
                 assert not self.model.is_finalized, "Updating finalized model"
                 self.model.classifier.update(
                     features, axis=axis, true=true_keys, pred=labels[pred] if axis == NODE_LABEL_KEY else pred.id,
-                    importance=[self.config.args.swap_importance if a.is_swap else 1 for a in true_values] or None)
+                    importance=[self.config.args.swap_importance if a.is_swap else 1 for a in true_values] or None,
+                    state=self.state)
             if not is_correct and self.config.args.early_update:
                 self.state.finished = True
         for model in self.models:
@@ -698,6 +702,44 @@ def main_generator():
     else:  # Simple train/dev/test by given arguments
         train_passages, dev_passages, test_passages = [read_passages(args, arg) for arg in
                                                        (args.train, args.dev, args.passages)]
+        args.parallel_passages = ["C:/Users/t-ofarvi/Desktop/shared_task_data/UCCA_English-20K"]
+        args.alignment_keys_file_ = "C:/Users/t-ofarvi/Desktop/shared_task_data/parallel.txt"
+        args.alignment_fr_to_en_file = "C:/Users/t-ofarvi/Desktop/shared_task_data/fr-en.fr.alignment.out.ucca"
+        parallel_passages = list(read_passages(args, args.parallel_passages))
+        alignment_list_keys = get_alignment_list_keys(args.alignment_keys_file_)
+        alignment_fr_to_en_list_values = get_alignment_list(args.alignment_fr_to_en_file)
+        assert len(alignment_list_keys) == len(alignment_fr_to_en_list_values)
+
+        dataset_id_list = [p.ID for p in list(itertools.chain(train_passages, dev_passages))]
+        parallel_passages_id_list = [p.ID for p in parallel_passages]
+        alignment_fr_id_list = alignment_list_keys.French
+        alignment_en_id_list = alignment_list_keys.English
+
+        assert len(set(alignment_fr_id_list) ^ set(dataset_id_list)) == 0
+        assert len(set(alignment_en_id_list) - set(parallel_passages_id_list)) == 0
+
+        def add_projection_data(passage: Passage):
+            alignment = alignment_list_keys[alignment_list_keys.French == passage.ID]
+            parallel_passage_id = alignment.get("English").values
+            assert len(parallel_passage_id) == 1
+            parallel_passage_id = parallel_passage_id[0]
+            parallel_passage = [p for p in parallel_passages if p.ID == parallel_passage_id]
+            assert len(parallel_passage) == 1
+            parallel_passage = parallel_passage[0]
+
+            alignment_index = alignment.index.values
+            assert len(alignment_index) == 1
+            alignment_index = alignment_index[0]
+            word_alignment = alignment_fr_to_en_list_values[alignment_index]
+
+            passage.parallel_passage = parallel_passage
+            passage.alignment_fr_to_en = word_alignment
+
+            return passage
+
+        train_passages = list(map(add_projection_data, train_passages))
+        dev_passages = list(map(add_projection_data, dev_passages))
+
         yield from train_test(train_passages, dev_passages, test_passages, args)
 
 
