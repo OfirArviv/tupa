@@ -245,6 +245,10 @@ class Config(object, metaclass=Singleton):
         self.arg_parser = ap = ArgParser(description="Transition-based parser for UCCA.",
                                          formatter_class=ArgumentDefaultsHelpFormatter)
 
+        ap.add_argument("--parallel-passages", nargs="+", default=())
+        ap.add_argument("--alignment-keys-file")
+        ap.add_argument("--alignment-fr-to-en-file")
+
         add_boolean_option(ap, "use-bert", default=False, description="whether to use bert embeddings")
         ap.add_argument("--bert-model", choices=["bert-base-uncased", "bert-large-uncased", "bert-base-cased",
                                                  "bert-large-cased", "bert-base-multilingual-cased"],

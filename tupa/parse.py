@@ -702,11 +702,11 @@ def main_generator():
     else:  # Simple train/dev/test by given arguments
         train_passages, dev_passages, test_passages = [read_passages(args, arg) for arg in
                                                        (args.train, args.dev, args.passages)]
-        args.parallel_passages = ["C:/Users/t-ofarvi/Desktop/shared_task_data/UCCA_English-20K"]
-        args.alignment_keys_file_ = "C:/Users/t-ofarvi/Desktop/shared_task_data/parallel.txt"
-        args.alignment_fr_to_en_file = "C:/Users/t-ofarvi/Desktop/shared_task_data/fr-en.fr.alignment.out.ucca"
+        #args.parallel_passages = ["C:/Users/t-ofarvi/Desktop/shared_task_data/UCCA_English-20K"]
+        #args.alignment_keys_file = "C:/Users/t-ofarvi/Desktop/shared_task_data/parallel.txt"
+        #args.alignment_fr_to_en_file = "C:/Users/t-ofarvi/Desktop/shared_task_data/fr-en.fr.alignment.out.ucca"
         parallel_passages = list(read_passages(args, args.parallel_passages))
-        alignment_list_keys = get_alignment_list_keys(args.alignment_keys_file_)
+        alignment_list_keys = get_alignment_list_keys(args.alignment_keys_file)
         alignment_fr_to_en_list_values = get_alignment_list(args.alignment_fr_to_en_file)
         assert len(alignment_list_keys) == len(alignment_fr_to_en_list_values)
 
