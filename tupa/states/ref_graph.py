@@ -1,3 +1,5 @@
+from typing import List
+
 from .anchors import expand_anchors
 from .edge import StateEdge
 from .node import StateNode
@@ -5,6 +7,8 @@ from ..constraints.amr import NAME
 from ..constraints.validation import ROOT_ID, ROOT_LAB, ANCHOR_LAB
 from ..recategorization import resolve, compress_name
 
+import networkx as nx
+import matplotlib.pyplot as plt
 
 class RefGraph:
     def __init__(self, graph, conllu, framework):
@@ -56,3 +60,24 @@ class RefGraph:
                 node.properties = {prop: resolve(node, value, introduce_placeholders=True)
                                    for prop, value in node.properties.items()}
             node.label = resolve(node, node.label, introduce_placeholders=True)  # Must be after properties in case NAME
+        if contain_cycle(self):
+            graph = self
+            edges_tuple = list(map(lambda x: (x.src, x.tgt), graph.edges))
+            my_graph = nx.Graph()
+            my_graph.add_edges_from(edges_tuple)
+            nx.draw(my_graph, with_labels=True, font_weight='bold')
+            plt.show()
+            print("here cycle")
+
+
+def contain_cycle(graph: RefGraph) -> bool:
+    visited_node_list: List[StateNode] = []
+    to_visit_node_list = [graph.root]
+    while len(to_visit_node_list) > 0:
+        curr = to_visit_node_list.pop()
+        if curr in visited_node_list:
+            return True
+        visited_node_list.append(curr)
+        to_visit_node_list.extend(curr.children)
+
+    return False
