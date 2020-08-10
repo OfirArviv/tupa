@@ -15,7 +15,7 @@ BIRNN = "bilstm"
 NOOP = "noop"
 CLASSIFIERS = (BIRNN, NOOP)
 
-FEATURE_PROPERTIES = "wmtudhencpqxyANEPC"
+FEATURE_PROPERTIES = "wmtudhenpqxyANEPC"
 
 # Swap types
 REGULAR = "regular"
@@ -96,7 +96,6 @@ def add_param_arguments(ap=None, arg_default=None):  # arguments with possible f
 
     group = ap.add_argument_group(title="Node labels")
     add(group, "--max-node-labels", type=int, default=1000, help="max number of node labels to allow")
-    add(group, "--max-node-categories", type=int, default=25, help="max node categories to allow")
     add(group, "--min-node-label-count", type=int, default=2, help="min number of occurrences for a label")
 
     group = ap.add_argument_group(title="Node properties")
@@ -143,7 +142,6 @@ def add_param_arguments(ap=None, arg_default=None):  # arguments with possible f
     add(group, "--edge-label-dim", type=int, default=20, help="dimension for edge label embeddings")
     add(group, "--edge-attribute-dim", type=int, default=1, help="dimension for edge attribute embeddings")
     add(group, "--node-label-dim", type=int, default=20, help="dimension for node label embeddings")
-    add(group, "--node-category-dim", type=int, default=5, help="dimension for node category embeddings")
     add(group, "--node-property-dim", type=int, default=20, help="dimension for node property embeddings")
     add(group, "--punct-dim", type=int, default=1, help="dimension for separator punctuation embeddings")
     add(group, "--action-dim", type=int, default=3, help="dimension for input action type embeddings")
@@ -180,7 +178,7 @@ def add_param_arguments(ap=None, arg_default=None):  # arguments with possible f
     add(group, "--edge-attribute-dropout", type=float, default=0.2, help="edge attribute dropout parameter")
     add(group, "--node-dropout", type=float, default=0.1, help="probability to drop features for a whole node")
     add(group, "--dropout", type=float, default=0.4, help="dropout parameter between layers")
-    add(group, "--max-length", type=int, default=120, help="maximum length of input sentence")
+    add(group, "--max-length", type=int, default=80, help="maximum length of input sentence")
     add(group, "--rnn", choices=["None"] + list(RNNS), default=DEFAULT_RNN, help="type of recurrent neural network")
     add(group, "--gated", type=int, nargs="?", default=2, help="gated input to BiRNN and MLP")
     add(group, "--use-bert", action="store_true", help="whether to use bert embeddings")
@@ -317,6 +315,8 @@ class Config(object, metaclass=Singleton):
         group.add_argument("-l", "--log", help="output log file (default: model filename + .log)")
         group.add_argument("--devscores", help="output CSV file for dev scores (default: model filename + .dev.csv)")
         group.add_argument("--testscores", help="output CSV file for test scores (default: model filename + .test.csv)")
+        group.add_argument("--diagnostics", help="output CSV file for diagnostics info (default: model filename + "
+                                                 ".diagnostics.csv)")
         group.add_argument("--action-stats", help="output CSV file for action statistics")
 
         group = ap.add_argument_group(title="Sanity checks")
@@ -332,6 +332,7 @@ class Config(object, metaclass=Singleton):
         add_boolean_option(group, "pytorch-gpu", "GPU for BERT")
         group.add_argument("--dynet-gpus", type=int, default=1, help="how many GPUs you want to use")
         add_boolean_option(group, "dynet-autobatch", "auto-batching of training examples")
+        add_boolean_option(group, "dynet-check-validity", "check validity of expressions immediately")
         DYNET_ARG_NAMES.update(get_group_arg_names(group))
 
         ap.add_argument("-H", "--hyperparams", type=HyperparamsInitializer.action, nargs="*",
@@ -350,6 +351,11 @@ class Config(object, metaclass=Singleton):
                 self.args.devscores = self.args.model + ".dev.csv"
             if self.args.input and not self.args.testscores:
                 self.args.testscores = self.args.model + ".test.csv"
+            if self.args.input and not self.args.diagnostics:
+                self.args.diagnostics = self.args.model + ".diagnostics.csv"
+            if self.args.diagnostics:
+                with open(self.args.diagnostics, "a") as f:
+                    print("id", "framework", "tokens", "actions", sep=",", file=f)
         elif not self.args.log:
             self.args.log = "parse.log"
         self.sub_configs = []  # Copies to be stored in Models so that they do not interfere with each other

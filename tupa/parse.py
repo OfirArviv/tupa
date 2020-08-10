@@ -318,6 +318,12 @@ class GraphParser(AbstractParser):
         if accuracies is not None:
             count = sum(self.count.values())
             accuracies[(self.graph.id, self.framework)] = sum(self.correct_count.values()) / count if count else 0
+        if self.config.args.diagnostics:
+            try:
+                with open(self.config.args.diagnostics, "a") as f:
+                    print(self.graph.id, self.framework, len(self.conllu.nodes), self.count[None], sep=",", file=f)
+            except OSError:
+                pass
         return self.out
 
     @property
@@ -452,6 +458,7 @@ class Parser(AbstractParser):
         :param test: whether there are graphs that would be tested on after train finished
         :param iterations: iterable of Iterations objects whose i attributes are the number of iterations to perform
         """
+        self.batch = 0
         self.trained = True
         self.dev = read_graphs_with_progress_bar(dev)
         self.test = test
@@ -536,7 +543,8 @@ class Parser(AbstractParser):
         print("Evaluating on %s graphs" % mode.name, file=sys.stderr)
         out = self.parse(graphs, mode=mode, display=display, write=write)
         try:
-            results = score.mces.evaluate(graphs, out, cores=self.config.args.cores)
+            results = score.mces.evaluate(graphs, out, cores=self.config.args.cores,
+                                          limits={"rrhc": 10, "mces": 5000} if mode == ParseMode.dev else None)
         except (KeyError, ValueError) as e:
             raise ValueError("Failed evaluating graphs: \n" + "\n".join(json.dumps(
                 g.encode(), indent=None, ensure_ascii=False) for g in out)) from e
@@ -559,7 +567,6 @@ class Parser(AbstractParser):
         :param write: whether to write output graphs to file
         :return: generator of parsed graphs
         """
-        self.batch = 0
         assert mode in ParseMode, "Invalid parse mode: %s" % mode
         training = (mode is ParseMode.train)
         if not training and not self.trained:
