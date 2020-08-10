@@ -64,11 +64,7 @@ class RefGraph:
             [i for i, edge in enumerate(graph.edges) if edge.src == cycle[0][0] and edge.tgt == cycle[0][1]][0]
             del edge_list[first_edge_idx]
             graph.edges = set(edge_list)
-            # first_edge = [edge for edge in graph.edges if edge.src == cycle[0][0] and edge.tgt == cycle[0][1]][0]
-            # graph.edges.remove(first_edge)
             cycle = find_cycle(graph)
-
-        # assert is_directed_acyclic_graph(graph)
 
         for edge in graph.edges:
             if edge.src != edge.tgt:  # Drop self-loops as the parser currently does not support them

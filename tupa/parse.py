@@ -129,8 +129,7 @@ class GraphParser(AbstractParser):
         self.graph.normalize(NORMALIZATIONS)
         self.state = State(self.graph, self.conllu, self.framework)
         self.oracle = Oracle(self.state.ref_graph) if self.training or (self.state.has_ref and
-                                                                        (
-                                                                                self.config.args.verbose > 1 or self.config.args.action_stats)) else None
+                (self.config.args.verbose > 1 or self.config.args.action_stats)) else None
         self.model.init_model(self.framework)
         self.model.init_features(self.framework, self.state, self.training)
 
@@ -377,9 +376,6 @@ class BatchParser(AbstractParser):
                 if not self.training and target not in self.model.classifier.labels:
                     self.config.print("skipped target '%s' for '%s': did not train on it" % (target, graph.id), level=1)
                     continue
-                #if target == "amr" and alignment is None:
-                #    self.config.print("skipped target 'amr' for '%s': no companion alignment found" % graph.id, level=1)
-                #    continue
                 parser = GraphParser(
                     graph, self.config, self.model, self.training, conllu=conllu, alignment=alignment, target=target)
                 if self.config.args.verbose and display:
@@ -687,39 +683,6 @@ def read_graphs_with_progress_bar(file_handle_or_graphs):
                  unit=" graphs"), format="mrp", robust=True)
         return graphs
     return file_handle_or_graphs
-
-
-def filter_passages_for_bert(passages, args):
-    from pytorch_pretrained_bert import BertTokenizer
-    is_uncased_model = "uncased" in args.bert_model
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=is_uncased_model)
-    for passage in passages:
-        text = passage
-        bert_token = tokenizer.tokenize(text)
-        length = len(bert_token)
-        if length >= (215 - 2):  # -2 for the special separators words.
-            lang = passage.attrib.get("lang")
-            print("Passage longer than 512!" +
-                  "\nFiltering passage:"
-                  "\nLang: " + str(lang) +
-                  " Id: " + str(passage.ID) +
-                  " Tokens Length: " + str(length) +
-                  " Passage Length: " + str(len(text)))
-        else:
-            yield passage
-
-
-def contain_cycle(graph: Graph) -> bool:
-    visited_node_list = []
-    to_visit_node_list = [graph.root]
-    while len(to_visit_node_list) > 0:
-        curr = to_visit_node_list.pop()
-        if curr in visited_node_list:
-            return True
-        visited_node_list.append(curr)
-        to_visit_node_list.extend(curr.children)
-
-    return False
 
 
 def main():
