@@ -88,7 +88,7 @@ class GraphParser(AbstractParser):
                 alignment_node_anchor_char_range_list = None
                 if self.alignment.framework == "alignment":
                     conllu_node_id_list = (alignment_node.label or []) + list(chain(*alignment_node.values or []))
-                elif self.alignment.framework in ("anchoring") and self.framework in ("amr", "ptg"):
+                elif self.alignment.framework == "anchoring" and self.framework in ("amr", "ptg"):
                     conllu_node_id_list = set([alignment_dict["#"] for alignment_dict in
                                                (alignment_node.anchors or [])
                                                + ([anchor for anchor_list in (alignment_node.anchorings or []) for anchor in anchor_list])])

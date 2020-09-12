@@ -198,7 +198,7 @@ class Oracle:
                                                            if node.ref_node.properties else [])
                                        if k not in (node.properties or ()))
         except StopIteration:
-            return
+            return None
         if self.args.validate_oracle:
             try:
                 state.check_valid_property_value(true_property_value, message=True)

@@ -1,5 +1,5 @@
 import sys
-from typing import List
+from typing import List, Tuple
 
 from .anchors import expand_anchors
 from .edge import StateEdge
@@ -9,8 +9,6 @@ from ..constraints.validation import ROOT_ID, ROOT_LAB, ANCHOR_LAB
 from ..recategorization import resolve, compress_name
 
 import networkx as nx
-import matplotlib.pyplot as plt
-
 
 class RefGraph:
     def __init__(self, graph, conllu, framework):
@@ -22,7 +20,8 @@ class RefGraph:
         (3) Strings in node labels are replaced with placeholder when they match aligned terminal text
         :return: RefGraph with nodes, edges, root and terminals
         """
-
+        if graph.id == "22170055":
+            print("here")
         self.framework = framework
         self.terminals = [StateNode(i, conllu_node.id, text=conllu_node.label,
                                     anchors=expand_anchors(conllu_node.anchors),
@@ -77,11 +76,12 @@ class RefGraph:
                     node.properties = compress_name(node.properties)
                 node.properties = {prop: resolve(node, value, introduce_placeholders=True)
                                    for prop, value in node.properties.items()}
+
             node.label = resolve(node, node.label, introduce_placeholders=True)  # Must be after properties in case NAME
 
 
-def find_cycle(graph, plot_graph=False) -> bool:
-    edges_tuple = list(map(lambda x: (x.src, x.tgt), graph.edges))
+def find_cycle(graph, plot_graph=False) -> List[Tuple[int, int]]:
+    edges_tuple = [(e.src, e.tgt) for e in graph.edges]
     nx_graph = nx.DiGraph()
     nx_graph.add_edges_from(edges_tuple)
     try:
@@ -90,13 +90,14 @@ def find_cycle(graph, plot_graph=False) -> bool:
         cycle = []
 
     if plot_graph:
+        import matplotlib.pyplot as plt
         nx.draw(nx_graph, with_labels=True, font_weight='bold')
         plt.show()
 
     return cycle
 
 
-def is_directed_acyclic_graph(graph):
+def is_directed_acyclic_graph(graph) -> bool:
     edges_tuple = list(map(lambda x: (x.src, x.tgt), graph.edges))
     nx_graph = nx.DiGraph()
     nx_graph.add_edges_from(edges_tuple)
