@@ -20,8 +20,6 @@ class RefGraph:
         (3) Strings in node labels are replaced with placeholder when they match aligned terminal text
         :return: RefGraph with nodes, edges, root and terminals
         """
-        if graph.id == "22170055":
-            print("here")
         self.framework = framework
         self.terminals = [StateNode(i, conllu_node.id, text=conllu_node.label,
                                     anchors=expand_anchors(conllu_node.anchors),
